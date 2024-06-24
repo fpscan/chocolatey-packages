@@ -41,7 +41,7 @@ jobs:
         
         # Update nuspec file
         $nuspec = [xml](Get-Content $nuspecPath)
-        $nuspec.package.metadata.version = (Get-Date -Format "yyyy.MM.dd")
+        $nuspec.package.metadata.version = (Get-Date -Format "dd.MM.yyyy")
         $nuspec.Save($nuspecPath)
         
         # Update install script
