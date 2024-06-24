@@ -10,6 +10,8 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
 
     - name: Install Chocolatey
       run: |
@@ -59,9 +61,11 @@ jobs:
         choco push $nupkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
 
     - name: Commit and push changes
+      env:
+        PAT: ${{ secrets.CHOCO_PAT }}
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add retroarch-nightly/*
         git commit -m "Update RetroArch Nightly package"
-        git push
+        git push "https://$env:CHOCO_PAT@github.com/${{ github.repository }}.git" HEAD:main
