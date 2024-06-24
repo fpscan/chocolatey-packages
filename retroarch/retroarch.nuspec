@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Do not remove this test for UTF-8: if “Ω” doesn’t appear as greek uppercase omega letter enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <!-- Read this before publishing packages to chocolatey.org: https://github.com/chocolatey/chocolatey/wiki/CreatePackages -->
+    <id>retroarch</id>
+    <title>RetroArch</title>
+    <version>1.19.1</version>
+    <authors>Libretro</authors>
+    <owners>Gadsby</owners>
+    <summary>RetroArch is the official reference frontend for the libretro API.</summary>
+    <description><![CDATA[RetroArch is a frontend for libretro, an open API which exposes the functionality of a game, emulator or certain kinds of multimedia applications. RetroArch builds around the libretro API to provide a powerful interface for libretro cores.
+
+## Package Parameters
+
+The following package parameters can be set:
+
+* `/InstallDir:{path}` - Installation directory, defaults to `{tools-location}` (typically `C:\tools`)
+* `/InstallationPath:{path}` - Alias for `/InstallDir`
+* `/DesktopShortcut` - Add shortcut for RetroArch to the desktop.
+
+## Notes
+
+If a custom installation directory is used for RetroArch, shims will still be created for `retroarch.exe` and `retroarch_debug.exe` on the path so that RetroArch can be started from the command line as with prior versions of this package.
+
+As of v1.9.1, the packaging method used by the RetroArch developers has changed. RetroArch now installs in its own `RetroArch-Win32` or `RetroArch-Win64` directory within the installation directory. This was not accounted for in the Chocolatey package until v1.9.4. If you have an older version of RetroArch installed, you may wish to uninstall it completely and then reinstall with Chocolatey instead of performing a simple upgrade.
+
+Since v1.7.7 was released, the libretro/RetroArch developers have been uploading new builds without always updating the version. If you get checksum errors while installing RetroArch, this has probably happened again. Just [let us know](https://chocolatey.org/packages/retroarch/ContactOwners) via the Contact Maintainers link and a new package should be up on Chocolatey shortly after.
+]]></description>
+    <projectUrl>http://www.retroarch.com/</projectUrl>
+    <packageSourceUrl>https://github.com/fpscan/chocolatey-packages/</packageSourceUrl>
+    <projectSourceUrl>https://github.com/libretro/RetroArch</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/libretro/RetroArch/issues</bugTrackerUrl>
+    <tags>retroarch games gaming emulation emulators</tags>
+    <copyright>GPLv3</copyright>
+    <licenseUrl>https://github.com/libretro/RetroArch/blob/master/COPYING</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <iconUrl>https://cdn.jsdelivr.net/gh/libretro/RetroArch/media/retroarch-96x96.png</iconUrl>
+    <dependencies>
+      <dependency id="chocolatey" version="0.10.8" />
+    </dependencies>
+    <releaseNotes>https://github.com/libretro/RetroArch/releases/tag/v1.19.1</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
