@@ -2,8 +2,8 @@ name: Update RetroArch Nightly
 
 on:
   schedule:
-    - cron: '30 17 * * *'  # Run daily at 17:30 UTC
-  workflow_dispatch:  # Allow manual triggers
+    - cron: '30 17 * * *' 
+  workflow_dispatch: 
 
 jobs:
   update-package:
@@ -41,7 +41,7 @@ jobs:
         
         # Update nuspec file
         $nuspec = [xml](Get-Content $nuspecPath)
-        $nuspec.package.metadata.version = (Get-Date -Format "dd.MM.yyyy")
+        $nuspec.package.metadata.version = (Get-Date -Format "yyyy.MM.dd")
         $nuspec.Save($nuspecPath)
         
         # Update install script
