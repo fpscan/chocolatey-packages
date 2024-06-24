@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>retroarch-nightly</id>
+    <version>0.0.0</version>
+    <title>RetroArch Nightly</title>
+    <authors>Libretro</authors>
+    <projectUrl>https://www.retroarch.com/</projectUrl>
+    <iconUrl>https://cdn.jsdelivr.net/gh/libretro/RetroArch/media/retroarch-96x96.png</iconUrl>
+    <licenseUrl>https://github.com/libretro/RetroArch/blob/master/COPYING</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>RetroArch is a frontend for emulators, game engines and media players. This package provides nightly builds.</description>
+    <summary>RetroArch Nightly Build</summary>
+    <tags>retroarch emulator libretro gaming</tags>
+  </metadata>
+</package>
