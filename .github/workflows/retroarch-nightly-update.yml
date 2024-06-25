@@ -25,35 +25,33 @@ jobs:
         $nuspecPath = "retroarch-nightly/retroarch-nightly.nuspec"
         $installScriptPath = "retroarch-nightly/tools/chocolateyinstall.ps1"
         
-        # Update nuspec file
         $nuspec = [xml](Get-Content $nuspecPath)
-        $nuspec.package.metadata.version = (Get-Date -Format "yyyy.MM.dd")
+        $nuspec.package.metadata.version = (Get-Date -Format "dd.MM.yyyy")
         $nuspec.Save($nuspecPath)
         
-        # Update install script
         $installScript = @'
-$ErrorActionPreference = 'Stop'
-$toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
+        $ErrorActionPreference = 'Stop'
+        $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 
-$url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
-$url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
+        $url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
+        $url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
 
-$packageArgs = @{
-  packageName   = $env:ChocolateyPackageName
-  unzipLocation = $toolsDir
-  url           = $url32
-  url64bit      = $url64
+        $packageArgs = @{
+          packageName   = $env:ChocolateyPackageName
+          unzipLocation = $toolsDir
+          url           = $url32
+          url64bit      = $url64
 
-  softwareName  = 'retroarch*'
+          softwareName  = 'retroarch*'
 
-  checksum      = Get-RemoteChecksum $url32
-  checksumType  = 'sha256'
-  checksum64    = Get-RemoteChecksum $url64
-  checksumType64= 'sha256'
-}
+          checksum      = Get-RemoteChecksum $url32
+          checksumType  = 'sha256'
+          checksum64    = Get-RemoteChecksum $url64
+          checksumType64= 'sha256'
+        }
 
-Install-ChocolateyZipPackage @packageArgs
-'@
+        Install-ChocolateyZipPackage @packageArgs
+        '@
         Set-Content $installScriptPath $installScript
 
     - name: Build and push Chocolatey package
