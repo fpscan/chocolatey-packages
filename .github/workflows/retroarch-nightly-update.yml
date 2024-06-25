@@ -20,20 +20,6 @@ jobs:
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 
-    - name: Download RetroArch builds and calculate SHA256
-      run: |
-        $x64Url = "https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z"
-        $x86Url = "https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z"
-        
-        Invoke-WebRequest -Uri $x64Url -OutFile "RetroArch_x64.7z"
-        Invoke-WebRequest -Uri $x86Url -OutFile "RetroArch_x86.7z"
-        
-        $x64Hash = (Get-FileHash -Path "RetroArch_x64.7z" -Algorithm SHA256).Hash
-        $x86Hash = (Get-FileHash -Path "RetroArch_x86.7z" -Algorithm SHA256).Hash
-        
-        echo "X64_HASH=$x64Hash" >> $env:GITHUB_ENV
-        echo "X86_HASH=$x86Hash" >> $env:GITHUB_ENV
-
     - name: Update package files
       run: |
         $nuspecPath = "retroarch-nightly/retroarch-nightly.nuspec"
@@ -45,11 +31,29 @@ jobs:
         $nuspec.Save($nuspecPath)
         
         # Update install script
-        $installScript = Get-Content $installScriptPath -Raw
-        $installScript = $installScript -replace '(?<=\$url64\s*=\s*").+?(?=")', "https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z"
-        $installScript = $installScript -replace '(?<=\$url32\s*=\s*").+?(?=")', "https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z"
-        $installScript = $installScript -replace '(?<=\$checksum64\s*=\s*").+?(?=")', $env:X64_HASH
-        $installScript = $installScript -replace '(?<=\$checksum32\s*=\s*").+?(?=")', $env:X86_HASH
+        $installScript = @'
+$ErrorActionPreference = 'Stop'
+$toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
+
+$url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
+$url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
+
+$packageArgs = @{
+  packageName   = $env:ChocolateyPackageName
+  unzipLocation = $toolsDir
+  url           = $url32
+  url64bit      = $url64
+
+  softwareName  = 'retroarch*'
+
+  checksum      = Get-RemoteChecksum $url32
+  checksumType  = 'sha256'
+  checksum64    = Get-RemoteChecksum $url64
+  checksumType64= 'sha256'
+}
+
+Install-ChocolateyZipPackage @packageArgs
+'@
         Set-Content $installScriptPath $installScript
 
     - name: Build and push Chocolatey package
