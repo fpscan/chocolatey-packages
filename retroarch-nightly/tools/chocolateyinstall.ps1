@@ -1,22 +1,21 @@
 $ErrorActionPreference = 'Stop'
+$toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 
-$packageName = 'retroarch-nightly'
-$toolsDir    = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$url64       = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
-$url32       = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
-$checksum64  = 'ACTUAL_CHECKSUM_64'
-$checksum32  = 'ACTUAL_CHECKSUM_32'
-$checksumType = 'sha256'
+$url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
+$url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
 
 $packageArgs = @{
-  packageName   = $packageName
+  packageName   = $env:ChocolateyPackageName
   unzipLocation = $toolsDir
-  url64bit      = $url64
   url           = $url32
-  checksum64    = $checksum64
-  checksum      = $checksum32
-  checksumType64= $checksumType
-  checksumType  = $checksumType
+  url64bit      = $url64
+
+  softwareName  = 'retroarch*'
+
+  checksum      = Get-RemoteChecksum $url32
+  checksumType  = 'sha256'
+  checksum64    = Get-RemoteChecksum $url64
+  checksumType64= 'sha256'
 }
 
 Install-ChocolateyZipPackage @packageArgs
