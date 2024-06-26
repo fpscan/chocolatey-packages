@@ -40,7 +40,7 @@ jobs:
     - name: Update chocolateyinstall.ps1
       run: |
         $version = "${{ github.event.inputs.version }}"
-        $installScriptPath = ".\chocolatey-packages\retroarch\tools\chocolateyinstall.ps1"
+        $installScriptPath = "${{ github.workspace }}\retroarch\tools\chocolateyinstall.ps1"
         $content = Get-Content $installScriptPath -Raw
         $content = $content -replace "https://buildbot\.libretro\.com/stable/\d+\.\d+\.\d+/windows/x86/RetroArch\.7z", "https://buildbot.libretro.com/stable/$version/windows/x86/RetroArch.7z"
         $content = $content -replace "https://buildbot\.libretro\.com/stable/\d+\.\d+\.\d+/windows/x86_64/RetroArch\.7z", "https://buildbot.libretro.com/stable/$version/windows/x86_64/RetroArch.7z"
@@ -51,7 +51,7 @@ jobs:
     - name: Update retroarch.nuspec
       run: |
         $version = "${{ github.event.inputs.version }}"
-        $nuspecPath = ".\chocolatey-packages\retroarch\retroarch.nuspec"
+        $nuspecPath = "${{ github.workspace }}\retroarch\retroarch.nuspec"
         $content = Get-Content $nuspecPath -Raw
         $content = $content -replace '<version>.*?</version>', "<version>$version</version>"
         $content = $content -replace '<releaseNotes>.*?</releaseNotes>', "<releaseNotes>https://github.com/libretro/RetroArch/releases/tag/v$version</releaseNotes>"
@@ -59,12 +59,12 @@ jobs:
 
     - name: Pack Chocolatey package
       run: |
-        cd chocolatey-packages\retroarch
+        cd ${{ github.workspace }}\retroarch
         choco pack
 
     - name: Push Chocolatey package
       run: |
-        cd chocolatey-packages\retroarch
+        cd ${{ github.workspace }}\retroarch
         choco apikey --key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
         choco push retroarch.${{ github.event.inputs.version }}.nupkg --source https://push.chocolatey.org/
 
