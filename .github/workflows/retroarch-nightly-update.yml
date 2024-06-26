@@ -1,10 +1,8 @@
 name: Update RetroArch Nightly
-
 on:
   schedule:
-    - cron: '30 17 * * *' 
-  workflow_dispatch: 
-
+    - cron: '30 17 * * *'
+  workflow_dispatch:
 jobs:
   update-package:
     runs-on: windows-latest
@@ -13,47 +11,46 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.CHOCO_PAT }}
-
     - name: Install Chocolatey
       run: |
         Set-ExecutionPolicy Bypass -Scope Process -Force
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-
     - name: Update package files
       run: |
         $nuspecPath = "retroarch-nightly/retroarch-nightly.nuspec"
         $installScriptPath = "retroarch-nightly/tools/chocolateyinstall.ps1"
         
         $nuspec = [xml](Get-Content $nuspecPath)
-        $nuspec.package.metadata.version = (Get-Date -Format "dd.MM.yyyy")
+        $nuspec.package.metadata.version = (Get-Date -Format "yyyy.MM.dd")
         $nuspec.Save($nuspecPath)
         
         $installScript = @'
         $ErrorActionPreference = 'Stop'
         $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-
         $url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
         $url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
+
+        function Get-FileHash256($url) {
+            $wc = New-Object System.Net.WebClient
+            $data = $wc.DownloadData($url)
+            return [System.BitConverter]::ToString($data | Get-FileHash -Algorithm SHA256 | Select-Object -ExpandProperty Hash).Replace("-", "").ToLower()
+        }
 
         $packageArgs = @{
           packageName   = $env:ChocolateyPackageName
           unzipLocation = $toolsDir
           url           = $url32
           url64bit      = $url64
-
           softwareName  = 'retroarch*'
-
-          checksum      = Get-RemoteChecksum $url32
+          checksum      = (Get-FileHash256 $url32)
           checksumType  = 'sha256'
-          checksum64    = Get-RemoteChecksum $url64
+          checksum64    = (Get-FileHash256 $url64)
           checksumType64= 'sha256'
         }
-
         Install-ChocolateyZipPackage @packageArgs
         '@
         Set-Content $installScriptPath $installScript
-
     - name: Build and push Chocolatey package
       env:
         CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
@@ -62,7 +59,6 @@ jobs:
         choco pack
         $nupkg = Get-ChildItem *.nupkg | Select-Object -First 1
         choco push $nupkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
-
     - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
