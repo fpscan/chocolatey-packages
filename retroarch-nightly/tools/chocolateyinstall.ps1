@@ -6,7 +6,9 @@ $url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
 function Get-FileHash256($url) {
     $wc = New-Object System.Net.WebClient
     $data = $wc.DownloadData($url)
-    return [System.BitConverter]::ToString($data | Get-FileHash -Algorithm SHA256 | Select-Object -ExpandProperty Hash).Replace("-", "").ToLower()
+    $stream = [System.IO.MemoryStream]::new($data)
+    $hash = Get-FileHash -InputStream $stream -Algorithm SHA256
+    return $hash.Hash.ToLower()
 }
 
 $packageArgs = @{
