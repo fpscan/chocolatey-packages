@@ -1,0 +1,77 @@
+name: Update RetroArch Stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'RetroArch version to update (e.g., 1.19.1)'
+        required: true
+
+env:
+  CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+
+jobs:
+  update-retroarch:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: |
+        choco install checksum -y
+        choco install chocolatey -y
+
+    - name: Download RetroArch
+      run: |
+        $version = "${{ github.event.inputs.version }}"
+        $url64 = "https://buildbot.libretro.com/stable/$version/windows/x86_64/RetroArch.7z"
+        $url32 = "https://buildbot.libretro.com/stable/$version/windows/x86/RetroArch.7z"
+        Invoke-WebRequest -Uri $url64 -OutFile "RetroArch64.7z"
+        Invoke-WebRequest -Uri $url32 -OutFile "RetroArch32.7z"
+
+    - name: Calculate checksums
+      run: |
+        $checksum64 = (checksum -t sha256 -f RetroArch64.7z).Split(' ')[0]
+        $checksum32 = (checksum -t sha256 -f RetroArch32.7z).Split(' ')[0]
+        echo "CHECKSUM64=$checksum64" >> $env:GITHUB_ENV
+        echo "CHECKSUM32=$checksum32" >> $env:GITHUB_ENV
+
+    - name: Update chocolateyinstall.ps1
+      run: |
+        $version = "${{ github.event.inputs.version }}"
+        $installScriptPath = ".\chocolatey-packages\retroarch\tools\chocolateyinstall.ps1"
+        $content = Get-Content $installScriptPath -Raw
+        $content = $content -replace "https://buildbot\.libretro\.com/stable/\d+\.\d+\.\d+/windows/x86/RetroArch\.7z", "https://buildbot.libretro.com/stable/$version/windows/x86/RetroArch.7z"
+        $content = $content -replace "https://buildbot\.libretro\.com/stable/\d+\.\d+\.\d+/windows/x86_64/RetroArch\.7z", "https://buildbot.libretro.com/stable/$version/windows/x86_64/RetroArch.7z"
+        $content = $content -replace '^\$checksum\s*=.*', "`$checksum      = '$env:CHECKSUM32'"
+        $content = $content -replace '^\$checksum64\s*=.*', "`$checksum64    = '$env:CHECKSUM64'"
+        Set-Content $installScriptPath $content
+
+    - name: Update retroarch.nuspec
+      run: |
+        $version = "${{ github.event.inputs.version }}"
+        $nuspecPath = ".\chocolatey-packages\retroarch\retroarch.nuspec"
+        $content = Get-Content $nuspecPath -Raw
+        $content = $content -replace '<version>.*?</version>', "<version>$version</version>"
+        $content = $content -replace '<releaseNotes>.*?</releaseNotes>', "<releaseNotes>https://github.com/libretro/RetroArch/releases/tag/v$version</releaseNotes>"
+        Set-Content $nuspecPath $content
+
+    - name: Pack Chocolatey package
+      run: |
+        cd chocolatey-packages\retroarch
+        choco pack
+
+    - name: Push Chocolatey package
+      run: |
+        cd chocolatey-packages\retroarch
+        choco apikey --key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
+        choco push retroarch.${{ github.event.inputs.version }}.nupkg --source https://push.chocolatey.org/
+
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .
+        git commit -m "Update RetroArch to version ${{ github.event.inputs.version }}"
+        git push
