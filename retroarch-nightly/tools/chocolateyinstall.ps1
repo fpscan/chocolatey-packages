@@ -1,25 +1,49 @@
 $ErrorActionPreference = 'Stop'
-$toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
-$url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
+$packageName   = 'retroarch-nightly'
+$url           = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
+$url64         = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
+$checksum      = '' # Will be filled by GitHub Actions
+$checksum64    = '' # Will be filled by GitHub Actions
+$checksumType  = 'sha256'
+$checksumType64= 'sha256'
 
-function Get-FileHash256($url) {
-    $wc = New-Object System.Net.WebClient
-    $data = $wc.DownloadData($url)
-    $stream = [System.IO.MemoryStream]::new($data)
-    $hash = Get-FileHash -InputStream $stream -Algorithm SHA256
-    return $hash.Hash.ToLower()
+# Get the package parameters and then back them up for the uninstaller
+$pp = Get-PackageParameters
+$toolsPath = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
+$paramsFile = Join-Path (Split-Path -Parent $toolsPath) 'PackageParameters.xml'
+Write-Debug "Writing package parameters to $paramsFile"
+Export-Clixml -Path $paramsFile -InputObject $pp
+
+if ((Get-ProcessorBits 32) -or $env:ChocolateyForceX86 -eq 'true') {
+  $specificFolder = "RetroArch-Win32"
+} else {
+  $specificFolder = "RetroArch-Win64"
 }
 
-$packageArgs = @{
-  packageName   = $env:ChocolateyPackageName
-  unzipLocation = $toolsDir
-  url           = $url32
-  url64bit      = $url64
-  softwareName  = 'retroarch*'
-  checksum      = (Get-FileHash256 $url32)
-  checksumType  = 'sha256'
-  checksum64    = (Get-FileHash256 $url64)
-  checksumType64= 'sha256'
+$installDir = $(Get-ToolsLocation)
+if ($pp.InstallDir -or $pp.InstallationPath ) { $installDir = $pp.InstallDir + $pp.InstallationPath }
+Write-Host "RetroArch is going to be installed in '$installDir'"
+
+Install-ChocolateyZipPackage "$packageName" `
+  -Url "$url" -Checksum "$checksum" -ChecksumType $checksumType `
+  -Url64 "$url64" -Checksum64 "$checksum64" -ChecksumType64 $checksumType64 `
+  -UnzipLocation "$installDir" -SpecificFolder "$specificFolder"
+
+if ($installDir -eq $toolsPath) {
+  New-Item "$installDir\$specificFolder\retroarch.exe.gui" -Type file -Force | Out-Null
+  if (Test-Path "$installDir\$specificFolder\retroarch_debug.exe") {
+    New-Item "$installDir\$specificFolder\retroarch_debug.exe.gui" -Type file -Force | Out-Null
+  }
+} else {
+  Install-BinFile retroarch -path "$installDir\$specificFolder\retroarch.exe" -UseStart
+  if (Test-Path "$installDir\$specificFolder\retroarch_debug.exe") {
+    Install-BinFile retroarch_debug -path "$installDir\$specificFolder\retroarch_debug.exe" -UseStart
+  }
 }
-Install-ChocolateyZipPackage @packageArgs
+
+if ($pp.DesktopShortcut) {
+  $desktop = [System.Environment]::GetFolderPath("Desktop")
+  Install-ChocolateyShortcut -ShortcutFilePath "$desktop\RetroArch Nightly.lnk" `
+    -TargetPath "$installDir\$specificFolder\retroarch.exe" -WorkingDirectory "$installDir" `
+    -WindowStyle 3
+}
