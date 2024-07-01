@@ -25,33 +25,39 @@ jobs:
         $nuspec.package.metadata.version = (Get-Date -Format "yyyy.MM.dd")
         $nuspec.Save($nuspecPath)
         
+        $url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
+        $url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
+        
+        function Get-FileHash256($url) {
+            $tempFile = [System.IO.Path]::GetTempFileName()
+            Invoke-WebRequest -Uri $url -OutFile $tempFile
+            $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
+            Remove-Item $tempFile
+            return $hash
+        }
+        
+        $checksum32 = Get-FileHash256 $url32
+        $checksum64 = Get-FileHash256 $url64
+        
         $installScript = @'
         $ErrorActionPreference = 'Stop'
         $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-        $url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
-        $url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
-
-        function Get-FileHash256($url) {
-            $wc = New-Object System.Net.WebClient
-            $data = $wc.DownloadData($url)
-            $stream = [System.IO.MemoryStream]::new($data)
-            $hash = Get-FileHash -InputStream $stream -Algorithm SHA256
-            return $hash.Hash.ToLower()
-        }
-
-        $packageArgs = @{
+        $url64 = '{0}'
+        $url32 = '{1}'
+        $packageArgs = @{{
           packageName   = $env:ChocolateyPackageName
           unzipLocation = $toolsDir
           url           = $url32
           url64bit      = $url64
           softwareName  = 'retroarch*'
-          checksum      = (Get-FileHash256 $url32)
+          checksum      = '{2}'
           checksumType  = 'sha256'
-          checksum64    = (Get-FileHash256 $url64)
+          checksum64    = '{3}'
           checksumType64= 'sha256'
-        }
+        }}
         Install-ChocolateyZipPackage @packageArgs
-        '@
+        '@ -f $url64, $url32, $checksum32, $checksum64
+        
         Set-Content $installScriptPath $installScript
     - name: Build and push Chocolatey package
       env:
