@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>retroarch-nightly</id>
-    <version>2024.06.26</version>
+    <version>2024.07.01</version>
     <title>RetroArch Nightly</title>
     <authors>Libretro</authors>
     <projectUrl>https://www.retroarch.com/</projectUrl>
