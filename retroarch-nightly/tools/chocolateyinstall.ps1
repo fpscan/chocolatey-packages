@@ -8,9 +8,9 @@ $packageArgs = @{
   url           = $url32
   url64bit      = $url64
   softwareName  = 'retroarch*'
-  checksum      = 'bb4651d63aebdee95c3a3a5649af5fee069f357fd577d2bfce8f099524a72d88'
+  checksum      = 'ab6d617c0dd5a0f821fdb2ffe478e25869b8aaac0ece8e67c085b450e8d36077'
   checksumType  = 'sha256'
-  checksum64    = 'fbf6e748b957cc25c64c5c7a6d6bece9fb56ee309253332846b39d61b0f64410'
+  checksum64    = 'b4dbc3447f7d65daf7f672776bc0b7b681b8406e64d5f366abfea48b9d579f7d'
   checksumType64= 'sha256'
 }
 Install-ChocolateyZipPackage @packageArgs
