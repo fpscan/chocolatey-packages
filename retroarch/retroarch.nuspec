@@ -18,6 +18,7 @@ The following package parameters can be set:
 * `/InstallDir:{path}` - Installation directory, defaults to `{tools-location}` (typically `C:\tools`)
 * `/InstallationPath:{path}` - Alias for `/InstallDir`
 * `/DesktopShortcut` - Add shortcut for RetroArch to the desktop.
+* `/NoStartMenuShortcut` - Do not create a shortcut in the Start Menu (created by default).
 
 Example: `choco install retroarch --params '"/DesktopShortcut /InstallDir:C:\RetroArch"'`
 

@@ -49,6 +49,17 @@ if (Test-Path (Join-Path $appDir 'retroarch_debug.exe')) {
   Install-BinFile -Name 'retroarch_debug' -Path (Join-Path $appDir 'retroarch_debug.exe') -UseStart
 }
 
+# Create Start Menu shortcut by default (unless opted out via /NoStartMenuShortcut)
+if (-not $pp.NoStartMenuShortcut) {
+  $startMenu = [System.Environment]::GetFolderPath('CommonPrograms')
+  if (-not $startMenu) { $startMenu = [System.Environment]::GetFolderPath('Programs') }
+  $startShortcut = Join-Path $startMenu 'RetroArch Nightly.lnk'
+  $targetExe = Join-Path $appDir 'retroarch.exe'
+  Install-ChocolateyShortcut -ShortcutFilePath $startShortcut `
+    -TargetPath $targetExe -WorkingDirectory $appDir `
+    -WindowStyle 3
+}
+
 if ($pp.DesktopShortcut) {
   $desktop = [System.Environment]::GetFolderPath('Desktop')
   $shortcutPath = Join-Path $desktop 'RetroArch Nightly.lnk'

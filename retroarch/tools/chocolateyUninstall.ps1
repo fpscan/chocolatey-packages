@@ -42,6 +42,16 @@ if (Test-Path (Join-Path $appDir 'retroarch_debug.exe')) {
   Uninstall-BinFile -Name 'retroarch_debug' -Path (Join-Path $appDir 'retroarch_debug.exe')
 }
 
+# Remove Start Menu shortcut if present
+foreach ($folder in @([System.Environment]::GetFolderPath('CommonPrograms'), [System.Environment]::GetFolderPath('Programs'))) {
+  if ($folder) {
+    $startShortcut = Join-Path $folder 'RetroArch.lnk'
+    if (Test-Path $startShortcut) {
+      Remove-Item $startShortcut -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+  }
+}
+
 # Remove desktop shortcut if created
 if ($pp.DesktopShortcut) {
   $desktop = [System.Environment]::GetFolderPath('Desktop')

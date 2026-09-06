@@ -17,12 +17,18 @@ The following package parameters can be passed during installation:
 * `/InstallDir:{path}` - Custom installation base directory (defaults to Chocolatey tools location, typically `C:\tools`). RetroArch installs into its subfolder (`RetroArch-Win64` or `RetroArch-Win32`).
 * `/InstallationPath:{path}` - Alias for `/InstallDir`.
 * `/DesktopShortcut` - Creates a desktop shortcut for RetroArch Nightly with the correct working directory.
+* `/NoStartMenuShortcut` - Do not create a Start Menu entry (created by default).
 
 #### Examples
 
 Install with a desktop shortcut:
 ```powershell
 choco install retroarch-nightly --params '"/DesktopShortcut"'
+```
+
+Install without creating a Start Menu shortcut:
+```powershell
+choco install retroarch-nightly --params '"/NoStartMenuShortcut"'
 ```
 
 Install into a custom directory:
