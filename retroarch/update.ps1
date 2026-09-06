@@ -1,62 +1,86 @@
-Import-Module au
-. $PSScriptRoot\..\_scripts\all.ps1
+﻿[CmdletBinding()]
+param(
+  [string]$Version = '',
+  [switch]$Force
+)
 
-$releases = "http://retroarch.com/index.php?page=platforms"
+$ErrorActionPreference = 'Stop'
+$packageDir = $PSScriptRoot
+$nuspecPath = Join-Path $packageDir 'retroarch.nuspec'
+$installScriptPath = Join-Path $packageDir 'tools\chocolateyInstall.ps1'
 
-function global:au_SearchReplace {
-  @{
-    ".\$($Latest.PackageName).nuspec" = @{
-      "\<licenseUrl\>.+" = "<licenseUrl>$($Latest.LicenseUrl)</licenseUrl>"
-      "\<iconUrl\>.+" = "<iconUrl>$($Latest.IconUrl)</iconUrl>"
-      "\<releaseNotes\>.+" = "<releaseNotes>$($Latest.ReleaseNotes)</releaseNotes>"
+function Get-LatestStableVersion {
+  try {
+    $headers = @{ 'User-Agent' = 'Chocolatey-RetroArch-Updater' }
+    $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/libretro/RetroArch/releases/latest' -Headers $headers -UseBasicParsing
+    if ($release -and $release.tag_name) {
+      return ($release.tag_name -replace '^v', '')
     }
-    ".\tools\chocolateyInstall.ps1" = @{
-      "(?i)(^\s*[$]packageName\s*=\s*)('.*')" = "`$1'$($Latest.PackageName)'"
-      "(?i)(^\s*[$]url\s*=\s*)('.*')" = "`$1'$($Latest.URL32)'"
-      "(?i)(^\s*[$]url64\s*=\s*)('.*')" = "`$1'$($Latest.URL64)'"
-      "(?i)(^\s*[$]checksum\s*=\s*)('.*')" = "`$1'$($Latest.Checksum32)'"
-      "(?i)(^\s*[$]checksum64\s*=\s*)('.*')" = "`$1'$($Latest.Checksum64)'"
-      "(?i)(^\s*[$]checksumType\s*=\s*)('.*')" = "`$1'$($Latest.ChecksumType32)'"
-      "(?i)(^\s*[$]checksumType64\s*=\s*)('.*')" = "`$1'$($Latest.ChecksumType64)'"
-    }
-    ".\tools\chocolateyUninstall.ps1" = @{
-      "(?i)(^\s*[$]packageName\s*=\s*)('.*')" = "`$1'$($Latest.PackageName)'"
-      "(?i)(^\s*[$]zip32\s*=\s*)('.*')" = "`$1'$($Latest.Zip32)'"
-      "(?i)(^\s*[$]zip64\s*=\s*)('.*')" = "`$1'$($Latest.Zip64)'"
-    }
+  } catch {
+    Write-Warning "Could not fetch latest release from GitHub API: $_"
+  }
+  return $null
+}
+
+function Get-UrlSha256([string]$url) {
+  $tempFile = [System.IO.Path]::GetTempFileName()
+  try {
+    Write-Host "Downloading $url to compute SHA256..."
+    Invoke-WebRequest -Uri $url -OutFile $tempFile -UseBasicParsing
+    return (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToUpper()
+  } finally {
+    if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
   }
 }
 
-function global:au_GetLatest {
-  $download_page = Invoke-WebRequest -Uri $releases -UseBasicParsing
-  $regex   = '/windows/x86(_64)?/'
-  $urls    = $download_page.links | Where-Object href -Match $regex | Select-Object -First 4 -Expand href
-  $version = $urls[0] -split '/' | Select-Object -Last 1 -Skip 3
-
-  $url32 = "https://buildbot.libretro.com/stable/${version}/windows/x86/RetroArch.7z"
-  $url64 = "https://buildbot.libretro.com/stable/${version}/windows/x86_64/RetroArch.7z"
-
-  $releaseNotesUrl = "https://github.com/libretro/RetroArch/releases/tag/v" + $version
-  $licenseUrl = "https://github.com/libretro/RetroArch/blob/v" + $version + '/COPYING'
-  $iconUrl = "https://cdn.rawgit.com/libretro/RetroArch/v${version}/media/retroarch-96x96.png"
-
-  return @{
-    Version = $version
-
-    URL32 = $url32
-    Zip32 = Split-Path $url32 -Leaf
-    URL64 = $url64
-    Zip64 = Split-Path $url64 -Leaf
-
-    ReleaseNotes = $releaseNotesUrl
-    LicenseUrl = $licenseUrl
-    IconUrl = $iconUrl
-  }
+if (-not $Version) {
+  $Version = Get-LatestStableVersion
 }
 
-Update-Package
-
-# Clean up PackageParameters.xml since it's neither needed nor wanted in here
-If (Test-Path -Path "PackageParameters.xml" -PathType leaf) {
-  Remove-Item PackageParameters.xml
+if (-not $Version) {
+  Write-Error "Unable to determine latest stable version. Please specify -Version parameter."
+  return
 }
+
+# Read current version from nuspec
+[xml]$nuspecXml = Get-Content $nuspecPath
+$currentVersion = $nuspecXml.package.metadata.version
+
+Write-Host "Current package version: $currentVersion"
+Write-Host "Target version: $Version"
+
+if ($currentVersion -eq $Version -and -not $Force) {
+  Write-Host "Package is already at version $Version. Use -Force to update anyway."
+  return
+}
+
+$url32 = "https://buildbot.libretro.com/stable/$Version/windows/x86/RetroArch.7z"
+$url64 = "https://buildbot.libretro.com/stable/$Version/windows/x86_64/RetroArch.7z"
+
+$hash32 = Get-UrlSha256 $url32
+$hash64 = Get-UrlSha256 $url64
+
+Write-Host "SHA256 (32-bit): $hash32"
+Write-Host "SHA256 (64-bit): $hash64"
+
+# Update chocolateyInstall.ps1
+$installContent = Get-Content $installScriptPath -Raw
+$installContent = [regex]::Replace($installContent, "(?m)^\$url\s*=.*", "`$url           = '$url32'")
+$installContent = [regex]::Replace($installContent, "(?m)^\$url64\s*=.*", "`$url64         = '$url64'")
+$installContent = [regex]::Replace($installContent, "(?m)^\$checksum\s*=.*", "`$checksum      = '$hash32'")
+$installContent = [regex]::Replace($installContent, "(?m)^\$checksum64\s*=.*", "`$checksum64    = '$hash64'")
+Set-Content -Path $installScriptPath -Value $installContent -Encoding UTF8
+
+# Update retroarch.nuspec
+$nuspecContent = Get-Content $nuspecPath -Raw
+$nuspecContent = [regex]::Replace($nuspecContent, "(?m)<version>.*?</version>", "<version>$Version</version>")
+$nuspecContent = [regex]::Replace($nuspecContent, "(?m)<releaseNotes>.*?</releaseNotes>", "<releaseNotes>https://github.com/libretro/RetroArch/releases/tag/v$Version</releaseNotes>")
+Set-Content -Path $nuspecPath -Value $nuspecContent -Encoding UTF8
+
+# Clean up PackageParameters.xml if generated
+$paramsFile = Join-Path $packageDir 'PackageParameters.xml'
+if (Test-Path $paramsFile) {
+  Remove-Item $paramsFile -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host "Successfully updated retroarch to $Version"

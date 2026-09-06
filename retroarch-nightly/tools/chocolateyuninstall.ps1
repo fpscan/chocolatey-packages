@@ -1,61 +1,70 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
+
 $packageName   = 'retroarch-nightly'
 $zip32         = 'RetroArch.7z'
 $zip64         = 'RetroArch.7z'
 
-if ((Get-ProcessorBits 32) -or $env:ChocolateyForceX86 -eq 'true') {
-  $specificFolder = "RetroArch-Win32"
+$is64bit = (Get-OSArchitectureWidth 2>$null) -eq 64 -or [System.Environment]::Is64BitOperatingSystem
+if ($env:ChocolateyForceX86 -eq 'true' -or -not $is64bit) {
+  $specificFolder = 'RetroArch-Win32'
   $zip = $zip32
 } else {
-  $specificFolder = "RetroArch-Win64"
+  $specificFolder = 'RetroArch-Win64'
   $zip = $zip64
 }
 
-Uninstall-ChocolateyZipPackage "$packageName" "$zip"
+# Uninstall unzipped files tracked by Chocolatey
+Uninstall-ChocolateyZipPackage -PackageName "$packageName" -ZipFileName "$zip"
 
-# Get package parameters
+# Retrieve package parameters (reading cached copy if available)
 $pp = Get-PackageParameters
+$toolsPath = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$paramsFile = Join-Path (Split-Path -Parent $toolsPath) 'PackageParameters.xml'
 if ($null -eq $pp -or $pp.Count -eq 0) {
-  # Work around for choco#1479 https://github.com/chocolatey/choco/issues/1479
-  $toolsPath = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-  $paramsFile = Join-Path (Split-Path -Parent $toolsPath) 'PackageParameters.xml'
   if (Test-Path -Path $paramsFile) {
     Write-Debug "Loading package parameters from $paramsFile"
-    $pp = Import-Clixml -Path $paramsFile
+    try {
+      $pp = Import-Clixml -Path $paramsFile -ErrorAction SilentlyContinue
+    } catch {
+      $pp = @{}
+    }
   } else {
-    Write-Debug "No package parameters available; shims and desktop shortcut won't be removed if they were created"
     $pp = @{}
   }
 }
 
-$installDir = Join-Path $(Get-ToolsLocation) $specificFolder
-if ($pp.InstallDir -or $pp.InstallationPath ) { $installDir = $pp.InstallDir + $pp.InstallationPath }
+$baseDir = if ($pp.InstallDir) { $pp.InstallDir } elseif ($pp.InstallationPath) { $pp.InstallationPath } else { Get-ToolsLocation }
+$appDir = Join-Path $baseDir $specificFolder
 
-if ($installDir -ne $toolsPath) {
-  Uninstall-BinFile retroarch -path "$installDir\retroarch.exe"
-  if (Test-Path "$installDir\retroarch_debug.exe") {
-    Uninstall-BinFile retroarch_debug -path "$installDir\retroarch_debug.exe"
-  }
+# Remove shims
+Uninstall-BinFile -Name 'retroarch-nightly' -Path (Join-Path $appDir 'retroarch.exe')
+Uninstall-BinFile -Name 'retroarch' -Path (Join-Path $appDir 'retroarch.exe')
+if (Test-Path (Join-Path $appDir 'retroarch_debug.exe')) {
+  Uninstall-BinFile -Name 'retroarch-nightly_debug' -Path (Join-Path $appDir 'retroarch_debug.exe')
+  Uninstall-BinFile -Name 'retroarch_debug' -Path (Join-Path $appDir 'retroarch_debug.exe')
 }
 
+# Remove desktop shortcut if created
 if ($pp.DesktopShortcut) {
-  $desktop = [System.Environment]::GetFolderPath("Desktop")
-  Remove-Item "$desktop\RetroArch Nightly.lnk" -ErrorAction SilentlyContinue -Force | Out-Null
-}
-
-# Clean up the installation directory if it's empty
-if (Test-Path $installDir) {
-  $isEmpty = @(Get-ChildItem -Path $installDir -Force).Count -eq 0
-  if ($isEmpty) {
-    Remove-Item -Path $installDir -Force -Recurse
-    Write-Host "Removed empty installation directory: $installDir"
-  } else {
-    Write-Host "Installation directory is not empty. Manual cleanup may be required: $installDir"
+  $desktop = [System.Environment]::GetFolderPath('Desktop')
+  $shortcutPath = Join-Path $desktop 'RetroArch Nightly.lnk'
+  if (Test-Path $shortcutPath) {
+    Remove-Item $shortcutPath -Force -ErrorAction SilentlyContinue | Out-Null
   }
 }
 
-# Remove the package parameters file
+# Clean up empty installation folder while preserving user saves/configs
+if (Test-Path $appDir) {
+  $isEmpty = @(Get-ChildItem -Path $appDir -Force).Count -eq 0
+  if ($isEmpty) {
+    Remove-Item -Path $appDir -Force -Recurse -ErrorAction SilentlyContinue
+    Write-Host "Removed empty installation directory: $appDir"
+  } else {
+    Write-Host "Installation directory is not empty (preserved user configurations or saves): $appDir"
+  }
+}
+
+# Remove cached parameter file
 if (Test-Path $paramsFile) {
-  Remove-Item -Path $paramsFile -Force
-  Write-Debug "Removed package parameters file: $paramsFile"
+  Remove-Item -Path $paramsFile -Force -ErrorAction SilentlyContinue
 }

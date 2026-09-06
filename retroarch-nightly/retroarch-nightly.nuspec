@@ -1,16 +1,49 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Do not remove this test for UTF-8: if “Ω” doesn’t appear as greek uppercase omega letter enclosed in quotation marks, you should use an editor that supports UTF-8, not this one. -->
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>retroarch-nightly</id>
+    <title>RetroArch (Nightly)</title>
     <version>2024.08.06</version>
-    <title>RetroArch Nightly</title>
     <authors>Libretro</authors>
+    <owners>fpscan, Gadsby</owners>
+    <summary>RetroArch is the official reference frontend for the libretro API (Nightly Builds).</summary>
+    <description><![CDATA[RetroArch is a frontend for libretro, an open API which exposes the functionality of a game, emulator or certain kinds of multimedia applications. RetroArch builds around the libretro API to provide a powerful interface for libretro cores.
+
+This package tracks bleeding-edge nightly builds from the Libretro buildbot.
+
+## Package Parameters
+
+The following package parameters can be set:
+
+* `/InstallDir:{path}` - Installation base directory, defaults to `{tools-location}` (typically `C:\tools`)
+* `/InstallationPath:{path}` - Alias for `/InstallDir`
+* `/DesktopShortcut` - Add shortcut for RetroArch Nightly to the desktop.
+
+Example: `choco install retroarch-nightly --params '"/DesktopShortcut /InstallDir:C:\RetroArchNightly"'`
+
+## Notes
+
+* RetroArch installs into its own `RetroArch-Win64` (or `RetroArch-Win32`) directory within the installation directory.
+* Shims are created for `retroarch.exe` and `retroarch_debug.exe` with GUI support enabled (`-UseStart`), allowing command-line launching without holding open a background terminal.
+* Nightly builds may contain experimental features and potential regressions.
+]]></description>
     <projectUrl>https://www.retroarch.com/</projectUrl>
-    <iconUrl>https://cdn.jsdelivr.net/gh/libretro/RetroArch/media/retroarch-96x96.png</iconUrl>
+    <packageSourceUrl>https://github.com/fpscan/chocolatey-packages/</packageSourceUrl>
+    <projectSourceUrl>https://github.com/libretro/RetroArch</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/libretro/RetroArch/issues</bugTrackerUrl>
+    <docsUrl>https://docs.libretro.com/</docsUrl>
+    <tags>retroarch emulator libretro gaming nightly</tags>
+    <copyright>GPLv3</copyright>
     <licenseUrl>https://github.com/libretro/RetroArch/blob/master/COPYING</licenseUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>RetroArch is a frontend for emulators, game engines and media players. This package provides nightly builds.</description>
-    <summary>RetroArch Nightly Build</summary>
-    <tags>retroarch emulator libretro gaming</tags>
+    <iconUrl>https://cdn.jsdelivr.net/gh/libretro/RetroArch/media/retroarch-96x96.png</iconUrl>
+    <dependencies>
+      <dependency id="chocolatey" version="0.10.8" />
+    </dependencies>
+    <releaseNotes>https://buildbot.libretro.com/nightly/windows/</releaseNotes>
   </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
 </package>

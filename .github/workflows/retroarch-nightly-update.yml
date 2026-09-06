@@ -1,76 +1,75 @@
 name: Update RetroArch Nightly
+
 on:
   schedule:
     - cron: '30 17 * * *'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force update even if checksums have not changed'
+        type: boolean
+        required: false
+        default: false
+
+env:
+  CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+
 jobs:
   update-package:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        token: ${{ secrets.CHOCO_PAT }}
-    - name: Install Chocolatey
-      run: |
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-    - name: Update package files
-      run: |
-        $nuspecPath = "retroarch-nightly/retroarch-nightly.nuspec"
-        $installScriptPath = "retroarch-nightly/tools/chocolateyinstall.ps1"
-        
-        $nuspec = [xml](Get-Content $nuspecPath)
-        $nuspec.package.metadata.version = (Get-Date -Format "yyyy.MM.dd")
-        $nuspec.Save($nuspecPath)
-        
-        $url64 = 'https://buildbot.libretro.com/nightly/windows/x86_64/RetroArch.7z'
-        $url32 = 'https://buildbot.libretro.com/nightly/windows/x86/RetroArch.7z'
-        
-        function Get-FileHash256($url) {
-            $tempFile = [System.IO.Path]::GetTempFileName()
-            Invoke-WebRequest -Uri $url -OutFile $tempFile
-            $hash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
-            Remove-Item $tempFile
-            return $hash
-        }
-        
-        $checksum32 = Get-FileHash256 $url32
-        $checksum64 = Get-FileHash256 $url64
-        
-        $installScript = @'
-        $ErrorActionPreference = 'Stop'
-        $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-        $url64 = '{0}'
-        $url32 = '{1}'
-        $packageArgs = @{{
-          packageName   = $env:ChocolateyPackageName
-          unzipLocation = $toolsDir
-          url           = $url32
-          url64bit      = $url64
-          softwareName  = 'retroarch*'
-          checksum      = '{2}'
-          checksumType  = 'sha256'
-          checksum64    = '{3}'
-          checksumType64= 'sha256'
-        }}
-        Install-ChocolateyZipPackage @packageArgs
-        '@ -f $url64, $url32, $checksum32, $checksum64
-        
-        Set-Content $installScriptPath $installScript
-    - name: Build and push Chocolatey package
-      env:
-        CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
-      run: |
-        cd retroarch-nightly
-        choco pack
-        $nupkg = Get-ChildItem *.nupkg | Select-Object -First 1
-        choco push $nupkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
-    - name: Commit and push changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add retroarch-nightly/*
-        git commit -m "Update RetroArch Nightly package"
-        git push
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CHOCO_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Run Nightly Update Script
+        id: update
+        shell: powershell
+        run: |
+          $force = "${{ github.event.inputs.force }}" -eq 'true'
+          $params = @{}
+          if ($force) { $params['Force'] = $true }
+
+          $result = & .\retroarch-nightly\update.ps1 @params
+
+          [xml]$nuspec = Get-Content .\retroarch-nightly\retroarch-nightly.nuspec
+          $targetVer = $nuspec.package.metadata.version
+          echo "TARGET_VERSION=$targetVer" >> $env:GITHUB_ENV
+
+          $gitDiff = git status --porcelain
+          if ($gitDiff -or $force) {
+            echo "HAS_CHANGES=true" >> $env:GITHUB_ENV
+          } else {
+            echo "HAS_CHANGES=false" >> $env:GITHUB_ENV
+          }
+
+      - name: Build Chocolatey package
+        if: env.HAS_CHANGES == 'true'
+        shell: powershell
+        run: |
+          cd retroarch-nightly
+          choco pack
+
+      - name: Push Chocolatey package
+        if: env.HAS_CHANGES == 'true' && env.CHOCO_API_KEY != ''
+        shell: powershell
+        run: |
+          cd retroarch-nightly
+          $nupkg = Get-ChildItem -Filter "retroarch-nightly.*.nupkg" | Select-Object -First 1
+          if ($nupkg) {
+            choco push $nupkg.Name --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          } else {
+            Write-Error "No .nupkg file found to push"
+          }
+
+      - name: Commit and push changes
+        if: env.HAS_CHANGES == 'true'
+        shell: powershell
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add retroarch-nightly/*
+          git diff --staged --quiet || git commit -m "retroarch-nightly: Update to $env:TARGET_VERSION"
+          git push

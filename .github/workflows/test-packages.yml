@@ -1,0 +1,59 @@
+name: Test Chocolatey Packages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-packages:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate PowerShell Script Syntax
+        shell: powershell
+        run: |
+          $scripts = Get-ChildItem -Path . -Recurse -Filter "*.ps1"
+          $errors = 0
+          foreach ($script in $scripts) {
+            Write-Host "Validating syntax: $($script.FullName)"
+            $parseErrors = $null
+            $tokens = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors.Count -gt 0) {
+              Write-Error "Syntax errors in $($script.FullName):"
+              $parseErrors | ForEach-Object { Write-Error $_.Message }
+              $errors++
+            } else {
+              Write-Host "  -> Valid!" -ForegroundColor Green
+            }
+          }
+          if ($errors -gt 0) {
+            exit 1
+          }
+
+      - name: Test Pack RetroArch Stable
+        shell: powershell
+        run: |
+          cd retroarch
+          choco pack
+          $nupkg = Get-ChildItem -Filter "retroarch.*.nupkg" | Select-Object -First 1
+          if (-not $nupkg) {
+            throw "Failed to create retroarch package"
+          }
+          Write-Host "Successfully packed: $($nupkg.Name) ($($nupkg.Length) bytes)"
+
+      - name: Test Pack RetroArch Nightly
+        shell: powershell
+        run: |
+          cd retroarch-nightly
+          choco pack
+          $nupkg = Get-ChildItem -Filter "retroarch-nightly.*.nupkg" | Select-Object -First 1
+          if (-not $nupkg) {
+            throw "Failed to create retroarch-nightly package"
+          }
+          Write-Host "Successfully packed: $($nupkg.Name) ($($nupkg.Length) bytes)"

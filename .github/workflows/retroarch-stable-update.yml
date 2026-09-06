@@ -1,11 +1,19 @@
 name: Update RetroArch Stable
 
 on:
+  schedule:
+    - cron: '0 12 * * *'
   workflow_dispatch:
     inputs:
       version:
-        description: 'RetroArch version to update (e.g., 1.19.1)'
-        required: true
+        description: 'RetroArch version to update (leave empty to auto-detect latest release)'
+        required: false
+        default: ''
+      force:
+        description: 'Force re-packaging even if already current version'
+        type: boolean
+        required: false
+        default: false
 
 env:
   CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
@@ -14,64 +22,60 @@ jobs:
   update-retroarch:
     runs-on: windows-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.CHOCO_PAT || secrets.GITHUB_TOKEN }}
 
-    - name: Install dependencies
-      run: |
-        choco install checksum -y
-        choco install chocolatey -y
+      - name: Run Update Script
+        id: update
+        shell: powershell
+        run: |
+          $inputVersion = "${{ github.event.inputs.version }}".Trim()
+          $force = "${{ github.event.inputs.force }}" -eq 'true'
+          $params = @{}
+          if ($inputVersion) { $params['Version'] = $inputVersion }
+          if ($force) { $params['Force'] = $true }
 
-    - name: Download RetroArch
-      run: |
-        $version = "${{ github.event.inputs.version }}"
-        $url64 = "https://buildbot.libretro.com/stable/$version/windows/x86_64/RetroArch.7z"
-        $url32 = "https://buildbot.libretro.com/stable/$version/windows/x86/RetroArch.7z"
-        Invoke-WebRequest -Uri $url64 -OutFile "RetroArch64.7z"
-        Invoke-WebRequest -Uri $url32 -OutFile "RetroArch32.7z"
+          & .\retroarch\update.ps1 @params
 
-    - name: Calculate checksums
-      run: |
-        $checksum64 = (checksum -t sha256 -f RetroArch64.7z).Split(' ')[0]
-        $checksum32 = (checksum -t sha256 -f RetroArch32.7z).Split(' ')[0]
-        echo "CHECKSUM64=$checksum64" >> $env:GITHUB_ENV
-        echo "CHECKSUM32=$checksum32" >> $env:GITHUB_ENV
+          [xml]$nuspec = Get-Content .\retroarch\retroarch.nuspec
+          $targetVer = $nuspec.package.metadata.version
+          echo "TARGET_VERSION=$targetVer" >> $env:GITHUB_ENV
 
-    - name: Update chocolateyinstall.ps1
-      run: |
-        $version = "${{ github.event.inputs.version }}"
-        $installScriptPath = "${{ github.workspace }}\retroarch\tools\chocolateyinstall.ps1"
-        $content = Get-Content $installScriptPath -Raw
-        $content = $content -replace "https://buildbot\.libretro\.com/stable/\d+\.\d+\.\d+/windows/x86/RetroArch\.7z", "https://buildbot.libretro.com/stable/$version/windows/x86/RetroArch.7z"
-        $content = $content -replace "https://buildbot\.libretro\.com/stable/\d+\.\d+\.\d+/windows/x86_64/RetroArch\.7z", "https://buildbot.libretro.com/stable/$version/windows/x86_64/RetroArch.7z"
-        $content = $content -replace '^\$checksum\s*=.*', "`$checksum      = '$env:CHECKSUM32'"
-        $content = $content -replace '^\$checksum64\s*=.*', "`$checksum64    = '$env:CHECKSUM64'"
-        Set-Content $installScriptPath $content
+          $gitDiff = git status --porcelain
+          if ($gitDiff -or $force) {
+            echo "HAS_CHANGES=true" >> $env:GITHUB_ENV
+          } else {
+            echo "HAS_CHANGES=false" >> $env:GITHUB_ENV
+          }
 
-    - name: Update retroarch.nuspec
-      run: |
-        $version = "${{ github.event.inputs.version }}"
-        $nuspecPath = "${{ github.workspace }}\retroarch\retroarch.nuspec"
-        $content = Get-Content $nuspecPath -Raw
-        $content = $content -replace '<version>.*?</version>', "<version>$version</version>"
-        $content = $content -replace '<releaseNotes>.*?</releaseNotes>', "<releaseNotes>https://github.com/libretro/RetroArch/releases/tag/v$version</releaseNotes>"
-        Set-Content $nuspecPath $content
+      - name: Pack Chocolatey package
+        if: env.HAS_CHANGES == 'true'
+        shell: powershell
+        run: |
+          cd retroarch
+          choco pack
 
-    - name: Pack Chocolatey package
-      run: |
-        cd ${{ github.workspace }}\retroarch
-        choco pack
+      - name: Push Chocolatey package
+        if: env.HAS_CHANGES == 'true' && env.CHOCO_API_KEY != ''
+        shell: powershell
+        run: |
+          cd retroarch
+          $nupkg = Get-ChildItem -Filter "retroarch.*.nupkg" | Select-Object -First 1
+          if ($nupkg) {
+            choco push $nupkg.Name --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          } else {
+            Write-Error "No .nupkg file found to push"
+          }
 
-    - name: Push Chocolatey package
-      run: |
-        cd ${{ github.workspace }}\retroarch
-        choco apikey --key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
-        choco push retroarch.${{ github.event.inputs.version }}.nupkg --source https://push.chocolatey.org/
-
-    - name: Commit and push changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add .
-        git commit -m "Update RetroArch to version ${{ github.event.inputs.version }}"
-        git push
+      - name: Commit and push changes
+        if: env.HAS_CHANGES == 'true'
+        shell: powershell
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add retroarch/*
+          git diff --staged --quiet || git commit -m "retroarch: Update to version $env:TARGET_VERSION"
+          git push
